@@ -1,20 +1,4 @@
-"""
-fingerprint.py
-Simple fingerprinting module for web application scanning.
-
-Install requirements:
-    pip install requests beautifulsoup4 certifi
-
-Optional (headless, for SPA detection/rendering):
-    pip install playwright
-    playwright install
-
-Usage:
-    from fingerprint import FingerprintDetector
-    det = FingerprintDetector()
-    profile = det.analyze("https://example.com", use_headless=False)
-    print(profile.to_dict())
-"""
+# Test - raczej uzyje wersji modularnej
 
 import hashlib
 import json
@@ -28,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 
-# ---------- Data structures ----------
+# Data structures
 
 @dataclass
 class Evidence:
@@ -74,7 +58,7 @@ class TargetProfile:
         return d
 
 
-# ---------- Helper utils ----------
+# Helper units
 
 COMMON_ENDPOINTS = ["/admin", "/login", "/server-status", "/api/version", "/robots.txt"]
 
@@ -130,7 +114,7 @@ def fetch_tls_info(hostname: str, port: int = 443, timeout: float = 5.0) -> Dict
     return info
 
 
-# ---------- Fingerprint detector ----------
+# Fingerprint detector
 
 class FingerprintDetector:
     def __init__(self, user_agent: Optional[str] = None, timeout: int = 10):
@@ -150,7 +134,7 @@ class FingerprintDetector:
         """
         profile = TargetProfile(url=url)
 
-        # 1) HEAD request to get quick headers
+        # HEAD request to get quick headers
         head = safe_request(self.session, "HEAD", url, timeout=self.timeout)
         if head is not None:
             profile.headers = {k: v for k, v in head.headers.items()}
@@ -161,7 +145,7 @@ class FingerprintDetector:
             # sometimes server blocks HEAD; proceed with GET
             pass
 
-        # 2) GET request (HTML)
+        # GET request (HTML)
         get = safe_request(self.session, "GET", url, timeout=self.timeout)
         if get is None:
             # unreachable or timed out
@@ -175,7 +159,7 @@ class FingerprintDetector:
         profile.cookies = list({*profile.cookies, *list(get.cookies.keys())})
         profile.raw_html = get.text[:200000]  # cap size stored
 
-        # 3) parse HTML for scripts, css, meta
+        # parse HTML for scripts, css, meta
         try:
             soup = BeautifulSoup(get.text, "html.parser")
             # scripts
@@ -206,7 +190,7 @@ class FingerprintDetector:
             # parsing error -> leave lists empty
             pass
 
-        # 4) fetch favicon
+        # fetch favicon
         favicon_hash = None
         try:
             # attempt to locate favicon: common locations or link rel
@@ -232,7 +216,7 @@ class FingerprintDetector:
         except Exception:
             pass
 
-        # 5) TLS cert info (extract hostname from URL)
+        # TLS cert info (extract hostname from URL)
         try:
             parsed = requests.utils.urlparse(profile.final_url or url)
             hostname = parsed.hostname
@@ -243,7 +227,7 @@ class FingerprintDetector:
         except Exception:
             pass
 
-        # 6) common endpoints probing (HEAD to reduce side effects)
+        # common endpoints probing (HEAD to reduce side effects)
         ce = {}
         for ep in COMMON_ENDPOINTS:
             try:
@@ -257,10 +241,10 @@ class FingerprintDetector:
                 ce[ep] = -1
         profile.common_endpoints = ce
 
-        # 7) simple component detection heuristics (rule-based)
+        # simple component detection heuristics (rule-based)
         profile.components = self._detect_components(profile)
 
-        # 8) compute confidence score (aggregate)
+        # compute confidence score (aggregate)
         profile.confidence_score = self._compute_confidence(profile)
 
         return profile
@@ -395,7 +379,7 @@ class FingerprintDetector:
         return round(score, 3)
 
 
-# ------------ Example usage -------------
+# Test
 if __name__ == "__main__":
     import argparse
 
