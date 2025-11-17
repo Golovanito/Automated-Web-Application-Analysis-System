@@ -20,7 +20,7 @@ def safe_request(session: requests.Session, method: str, url: str, timeout: int 
 
 
 def parse_html(html: str) -> Tuple[List[str], List[str], Dict[str, str]]:
-    """Zwraca (scripts, css, meta) z podanego HTML-a."""
+    # Zwraca (scripts, css, meta) z podanego HTML-a
     scripts, css, metas = [], [], {}
     try:
         soup = BeautifulSoup(html, "html.parser")
@@ -46,7 +46,7 @@ def parse_html(html: str) -> Tuple[List[str], List[str], Dict[str, str]]:
 
 
 def discover_favicon_url(final_url: str, html: Optional[str]) -> str:
-    """Znajduje URL do favicona: <link rel='icon'> albo /favicon.ico."""
+    #Znajduje URL do favicona: <link rel='icon'> albo /favicon.ico.
     favicon_url = urljoin(final_url, "/favicon.ico")
     if not html:
         return favicon_url
@@ -73,7 +73,7 @@ def fetch_favicon_hash(session: requests.Session, final_url: str, html: Optional
 
 
 def fetch_tls_info(url: str, timeout: float = 5.0) -> Dict[str, str]:
-    """Pobiera podstawowe info TLS (tylko dla https)."""
+    # Pobiera podstawowe info TLS (tylko dla https). 
     info: Dict[str, str] = {}
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:

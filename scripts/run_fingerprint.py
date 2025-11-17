@@ -1,14 +1,18 @@
 # run_fingerprint.py
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import argparse
 import json
 import sys
 import logging
 
+
+
 try:
-    from fingerprint.detector import FingerprintDetector
+    from awsas.fingerprint.detector import FingerprintDetector
 except Exception:
     try:
-        from fingerprint import FingerprintDetector
+        from awsas.fingerprint import FingerprintDetector
     except Exception as e:
         print("Nie udało się zaimportować FingerprintDetector:", e)
         sys.exit(1)
@@ -27,7 +31,7 @@ def main():
     args = p.parse_args()
 
     det = FingerprintDetector(timeout=args.timeout)
-    print(f"[+] Starting fingerprint for: {args.url}")
+    #print(f"[+] Starting fingerprint for: {args.url}")
     profile = det.analyze(args.url)
 
     # print pretty json
