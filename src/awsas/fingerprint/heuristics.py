@@ -18,13 +18,6 @@ class ComponentMatch:
 VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
 
 def _extract_version_from_url(url: str) -> Optional[str]:
-    """
-    Próbujemy wyciągnąć coś w stylu 1.2 lub 1.2.3 z nazwy pliku / ścieżki.
-    Działa dla:
-    - jquery-3.6.0.min.js
-    - react.17.0.2.production.min.js
-    - vue/2.7.10/vue.min.js
-    """
     if not url:
         return None
     m = VERSION_RE.search(url)

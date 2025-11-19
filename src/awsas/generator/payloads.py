@@ -10,12 +10,6 @@ from .openai_client import OpenAIPayloadGenerator
 
 
 def summarize_analysis(profile: TargetProfile, cve_matches: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
-    """
-    Robi zwarty, tekstowy summary dla modelu:
-    - podstawowe info o celu,
-    - wykryte komponenty,
-    - najistotniejsze CVE (ID, status wersji, krótki opis).
-    """
     components_summary: List[Dict[str, Any]] = []
     for comp in profile.components:
         components_summary.append(
@@ -55,11 +49,6 @@ def summarize_analysis(profile: TargetProfile, cve_matches: Dict[str, List[Dict[
 
 
 def build_openai_input(summary: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Buduje input dla Responses API:
-    - blok system: zasady (bezpieczne payloady, testy tylko do weryfikacji, bez destrukcji)
-    - blok user: JSON z wynikami analizy + prośba o konkretne payloady testowe.
-    """
     summary_json = json.dumps(summary, indent=2, ensure_ascii=False)
 
     system_prompt = (
@@ -128,15 +117,6 @@ def generate_test_payloads(
     model: str = "gpt-5.1",
     # model: str = "openai/gpt-4o",
 ) -> Dict[str, Any]:
-    """
-    High-level:
-    - bierze profil fingerprintu + wyniki matchera CVE,
-    - robi summary,
-    - buduje input pod OpenAI,
-    - zwraca sparsowany JSON z testami.
-
-    W razie błędu parsowania JSON zwraca dict z jednym kluczem 'raw_output'.
-    """
     summary = summarize_analysis(profile, cve_matches)
     input_blocks = build_openai_input(summary)
 
