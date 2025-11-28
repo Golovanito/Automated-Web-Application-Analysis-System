@@ -1,0 +1,157 @@
+{
+  "tests": [
+    {
+      "id": "jquery-224-xss-dom-manipulation",
+      "target_component": "jQuery 2.2.4",
+      "related_cve": "CVE-2015-9251",
+      "risk_level": "high",
+      "description": "Test for jQuery 2.2.4 DOM-based XSS via location.hash manipulation. This version is vulnerable to XSS when user-controlled data from location.hash is passed to DOM manipulation methods.",
+      "http_request": {
+        "method": "GET",
+        "path": "/#<img src=x onerror=alert('jq-xss')>",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "If the page reflects the hash fragment in a way that jQuery processes it unsafely, XSS payload may execute. Check browser console or response for reflected payload.",
+      "check_indicator": "<img src=x onerror=alert('jq-xss')>",
+      "check_regex": null,
+      "expected_status": 200
+    },
+    {
+      "id": "admin-panel-access-check",
+      "target_component": "Admin Panel",
+      "related_cve": null,
+      "risk_level": "medium",
+      "description": "Verify if /admin endpoint is accessible without authentication. Status 200 indicates potential unauthorized access to admin functionality.",
+      "http_request": {
+        "method": "GET",
+        "path": "/admin",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "HTTP 200 status with admin panel content indicates missing authentication. Look for admin-specific UI elements or functionality.",
+      "check_indicator": null,
+      "check_regex": "(admin|dashboard|control panel|management)",
+      "expected_status": 200
+    },
+    {
+      "id": "server-status-information-disclosure",
+      "target_component": "Apache/Server Status",
+      "related_cve": null,
+      "risk_level": "medium",
+      "description": "Check if /server-status endpoint exposes sensitive server information including active connections, server version, and configuration details.",
+      "http_request": {
+        "method": "GET",
+        "path": "/server-status",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "Presence of Apache server status page with server metrics, version information, or active connection details indicates information disclosure.",
+      "check_indicator": "Server Version",
+      "check_regex": null,
+      "expected_status": 200
+    },
+    {
+      "id": "api-version-error-disclosure",
+      "target_component": "API Endpoint",
+      "related_cve": null,
+      "risk_level": "low",
+      "description": "Test /api/version endpoint that returns 500 error. Server errors may leak stack traces, framework versions, or internal paths.",
+      "http_request": {
+        "method": "GET",
+        "path": "/api/version",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0",
+          "Accept": "application/json"
+        },
+        "body": null
+      },
+      "expected_indicator": "HTTP 500 error with stack trace, framework details, or internal file paths indicates information disclosure through error messages.",
+      "check_indicator": null,
+      "check_regex": "(stack trace|error|exception|at line|in file)",
+      "expected_status": 500
+    },
+    {
+      "id": "robots-txt-enumeration",
+      "target_component": "robots.txt",
+      "related_cve": null,
+      "risk_level": "low",
+      "description": "Examine robots.txt for disallowed paths that may reveal hidden or sensitive endpoints not meant for public access.",
+      "http_request": {
+        "method": "GET",
+        "path": "/robots.txt",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "Presence of Disallow directives may reveal administrative paths, backup directories, or sensitive endpoints.",
+      "check_indicator": "Disallow:",
+      "check_regex": null,
+      "expected_status": 200
+    },
+    {
+      "id": "login-page-security-headers",
+      "target_component": "Login Page",
+      "related_cve": null,
+      "risk_level": "medium",
+      "description": "Check login page for missing security headers (X-Frame-Options, CSP, X-Content-Type-Options) that could enable clickjacking or XSS attacks.",
+      "http_request": {
+        "method": "GET",
+        "path": "/login",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "HTTP 200 with login form. Missing X-Frame-Options, Content-Security-Policy, or X-Content-Type-Options headers indicate potential security weaknesses.",
+      "check_indicator": null,
+      "check_regex": "(login|password|username|sign in)",
+      "expected_status": 200
+    },
+    {
+      "id": "jquery-version-confirmation",
+      "target_component": "jQuery 2.2.4",
+      "related_cve": null,
+      "risk_level": "low",
+      "description": "Confirm jQuery version by checking the main page source for jQuery library inclusion. Version 2.2.4 has multiple known XSS vulnerabilities.",
+      "http_request": {
+        "method": "GET",
+        "path": "/",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "Response contains jQuery 2.2.4 script tag or version identifier, confirming use of vulnerable library version.",
+      "check_indicator": "jquery/2.2.4",
+      "check_regex": null,
+      "expected_status": 200
+    },
+    {
+      "id": "http-methods-options-check",
+      "target_component": "HTTP Methods",
+      "related_cve": null,
+      "risk_level": "low",
+      "description": "Test for enabled HTTP methods using OPTIONS request. Unnecessary methods like PUT, DELETE, or TRACE may indicate misconfiguration.",
+      "http_request": {
+        "method": "OPTIONS",
+        "path": "/",
+        "headers": {
+          "User-Agent": "SecurityTest/1.0"
+        },
+        "body": null
+      },
+      "expected_indicator": "Allow header in response listing enabled HTTP methods. Presence of PUT, DELETE, TRACE, or CONNECT indicates potentially dangerous methods are enabled.",
+      "check_indicator": null,
+      "check_regex": null,
+      "expected_status": 200
+    }
+  ]
+}

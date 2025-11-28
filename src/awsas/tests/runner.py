@@ -51,6 +51,9 @@ def run_tests(
         body = req.get("body")
 
         expected_indicator = (t.get("expected_indicator") or "").strip()
+        check_indicator = (t.get("check_indicator") or "").strip()
+        check_regex = (t.get("check_regex") or "").strip()
+        expected_status = t.get("expected_status")  # może być int lub None
 
         full_url = urljoin(base_url, path)
 
@@ -73,13 +76,44 @@ def run_tests(
             text = resp.text or ""
             snippet = text[:2000]
 
-            if expected_indicator:
+            # --- SPRAWDZANIE STATUSU ---
+            status_ok = True
+            if isinstance(expected_status, int):
+                status_ok = (http_status == expected_status)
+
+            # --- SPRAWDZANIE TREŚCI ---
+            text_ok = True
+            indicator_found = False
+
+            # 1) regex ma pierwszeństwo
+            if check_regex:
+                try:
+                    import re
+                    if re.search(check_regex, text):
+                        indicator_found = True
+                        text_ok = True
+                    else:
+                        text_ok = False
+                except re.error:
+                    # jak regex zły – traktujemy jak brak dopasowania
+                    text_ok = False
+
+            # 2) prosty substring
+            elif check_indicator:
+                indicator_found = check_indicator in text
+                text_ok = indicator_found
+
+            # 3) fallback: krótki expected_indicator jako substring
+            elif expected_indicator and len(expected_indicator) < 120:
                 indicator_found = expected_indicator in text
-                ok = indicator_found
+                text_ok = indicator_found
+
+            # 4) jeśli nie mamy żadnego checka – test tylko „wykonany”
             else:
-                # Jeśli nie zdefiniowano indicatora, traktuj test jako „wykonany”,
-                # ale niekoniecznie pozytywny/negatywny.
-                ok = http_status is not None and http_status < 500
+                text_ok = True  # nie wiemy, więc nie psujemy wyniku
+
+            ok = status_ok and text_ok
+
         except Exception as e:
             error = str(e)
             ok = False

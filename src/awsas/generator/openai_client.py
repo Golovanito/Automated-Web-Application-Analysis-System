@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 import os
 from openai import OpenAI
 
-DEFAULT_MODEL = "gpt-5.1-mini"  # jak u Ciebie
+DEFAULT_MODEL = "gpt-5.1"  # jak u Ciebie
 
 class OpenAIPayloadGenerator:
     def __init__(self, api_key: str | None = None, model: str = DEFAULT_MODEL):
@@ -20,19 +20,14 @@ class OpenAIPayloadGenerator:
             input=input_blocks,
         )
 
-        # Najprościej: tak jak w oficjalnym README
         try:
             return resp.output_text
         except AttributeError:
-            # fallback, jakbyś kiedyś miał inną wersję SDK
-            # i trzeba było ręcznie sklejać content
             texts: List[str] = []
             for out in getattr(resp, "output", []) or []:
-                # out to już jest ResponseOutputMessage
                 content = getattr(out, "content", None)
                 if not content:
                     continue
-                # content jest listą "części" (np. tekst, obraz itd.)
                 for part in content:
                     if getattr(part, "type", None) == "output_text":
                         texts.append(part.text)

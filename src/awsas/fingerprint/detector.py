@@ -1,12 +1,14 @@
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import requests
 
 from .http_probe import (
     safe_request,
     parse_html,
+    extract_forms,
+    extract_paths,
     fetch_favicon_hash,
     fetch_tls_info,
     probe_common_endpoints,
@@ -25,6 +27,8 @@ class TargetProfile:
     scripts: List[str] = field(default_factory=list)
     css: List[str] = field(default_factory=list)
     meta: Dict[str, str] = field(default_factory=dict)
+    forms: List[Dict[str, Any]] = field(default_factory=list)
+    discovered_paths: List[str] = field(default_factory=list)
     tls: Dict[str, str] = field(default_factory=dict)
     common_endpoints: Dict[str, int] = field(default_factory=dict)
     components: List[ComponentMatch] = field(default_factory=list)
@@ -53,7 +57,7 @@ class FingerprintDetector:
     def analyze(self, url: str) -> TargetProfile:
         profile = TargetProfile(url=url)
 
-        # 1) HEAD
+        # HEAD
         head = safe_request(self.session, "HEAD", url, timeout=self.timeout)
         if head is not None:
             profile.headers = {k: v for k, v in head.headers.items()}
@@ -61,7 +65,7 @@ class FingerprintDetector:
             profile.final_url = head.url
             profile.cookies = list(head.cookies.keys())
 
-        # 2) GET
+        # GET
         get = safe_request(self.session, "GET", url, timeout=self.timeout)
         if get is None:
             return profile
@@ -71,20 +75,26 @@ class FingerprintDetector:
         profile.cookies = list({*profile.cookies, *list(get.cookies.keys())})
         profile.raw_html = get.text[:200000]
 
-        # 3) Parse HTML
+        # Parse HTML
         scripts, css, meta = parse_html(get.text)
         profile.scripts, profile.css, profile.meta = scripts, css, meta
 
-        # 4) Favicon
+        # Forms
+        profile.forms = extract_forms(get.text)
+
+        # Favicon
         profile.favicon_hash = fetch_favicon_hash(self.session, profile.final_url, get.text, timeout=self.timeout)
 
-        # 5) TLS
+        # TLS
         profile.tls = fetch_tls_info(profile.final_url)
 
-        # 6) Common endpoints
+        # Common endpoints
         profile.common_endpoints = probe_common_endpoints(self.session, profile.final_url)
 
-        # 7) Heuristics → components
+        # Extract paths
+        profile.discovered_paths = extract_paths(get.text, profile.final_url or url)
+
+        # Heuristics → components
         tls_issuer = profile.tls.get("issuer")
         profile.components = detect_components(
             headers=profile.headers,
@@ -95,7 +105,7 @@ class FingerprintDetector:
             tls_issuer=tls_issuer,
         )
 
-        # 8) Confidence
+        # Confidence
         profile.confidence_score = compute_confidence(profile.components, profile.headers, profile.cookies, profile.favicon_hash)
 
         return profile

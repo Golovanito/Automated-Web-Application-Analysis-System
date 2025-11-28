@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from awsas.tests.runner import run_tests
 
-TARGET_URL = "https://boscaiola.eu"     
-PAYLOADS_FILE = "data/payloads_2025-11-17.json"  
+TARGET_URL = "http://localhost:3000/"     
+PAYLOADS_FILE = "data/payloads.json"  
 TIMEOUT = 10 
 
 

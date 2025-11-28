@@ -2,13 +2,13 @@ import json, sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from awsas.fingerprint.detector import FingerprintDetector
 from awsas.cve.matcher import match_components_to_cves
-from awsas.generator.payloads import generate_test_payloads
+from awsas.generator.payloads import summarize_analysis
 
 DB_PATH = "data/cve_store.db"
 
 
 def main():
-    url = "http://localhost:3000/"
+    url = "http://127.0.0.1:4280"
 
     det = FingerprintDetector()
     profile = det.analyze(url)
@@ -20,7 +20,7 @@ def main():
 
     cve_matches = match_components_to_cves(components, db_path=DB_PATH, limit_per_component=10)
 
-    payload_spec = generate_test_payloads(profile, cve_matches)
+    payload_spec = summarize_analysis(profile, cve_matches)
 
     print(json.dumps(payload_spec, indent=2, ensure_ascii=False))
 

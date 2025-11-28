@@ -1,7 +1,7 @@
 import hashlib
 import socket
 import ssl
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -43,6 +43,90 @@ def parse_html(html: str) -> Tuple[List[str], List[str], Dict[str, str]]:
     except Exception:
         pass
     return scripts, css, metas
+
+def extract_forms(html: str) -> List[Dict[str, Any]]:
+    forms: List[Dict[str, Any]] = []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 1) Prawdziwe formularze <form>...</form>
+        for f in soup.find_all("form"):
+            form_info: Dict[str, Any] = {
+                "kind": "form",  # normalny formularz
+                "action": f.get("action") or "",
+                "method": (f.get("method") or "GET").upper(),
+                "inputs": [],
+            }
+            for inp in f.find_all(["input", "textarea", "select"]):
+                form_info["inputs"].append({
+                    "name": inp.get("name"),
+                    "type": inp.get("type") or inp.name,
+                    "id": inp.get("id"),
+                    "placeholder": inp.get("placeholder"),
+                })
+            forms.append(form_info)
+
+        # 2) "Sierotki" – inputy poza jakimkolwiek <form>
+        orphan_inputs: List[Dict[str, Any]] = []
+        for inp in soup.find_all(["input", "textarea", "select"]):
+            if inp.find_parent("form"):
+                continue  # już zebrane wyżej
+
+            orphan_inputs.append({
+                "name": inp.get("name"),
+                "type": inp.get("type") or inp.name,
+                "id": inp.get("id"),
+                "placeholder": inp.get("placeholder"),
+            })
+
+        if orphan_inputs:
+            forms.append(
+                {
+                    "kind": "orphan_inputs",
+                    "action": "",
+                    "method": "GET",  # domyślnie, bo nie wiemy co robi JS
+                    "inputs": orphan_inputs,
+                }
+            )
+
+    except Exception:
+        pass
+
+    return forms
+
+
+def extract_paths(html: str, base_url: str) -> List[str]:
+    paths: set[str] = set()
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        # <a href="...">
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            paths.add(href)
+        # <script src="..."> i <link href="...">
+        for tag in soup.find_all(["script", "link"], src=True):
+            paths.add(tag.get("src"))
+        for tag in soup.find_all("link", href=True):
+            paths.add(tag.get("href"))
+
+    except Exception:
+        pass
+
+    cleaned: set[str] = set()
+    base = urlparse(base_url)
+
+    for p in paths:
+        if not p:
+            continue
+        # ignorujemy absolutne zewnętrzne (inne hosty)
+        full = urljoin(base_url, p)
+        parsed = urlparse(full)
+        if parsed.netloc != base.netloc:
+            continue
+        # interesuje nas tylko path + ewentualny fragment api
+        cleaned.add(parsed.path)
+
+    return sorted(cleaned)
 
 
 def discover_favicon_url(final_url: str, html: Optional[str]) -> str:
@@ -104,7 +188,7 @@ def fetch_tls_info(url: str, timeout: float = 5.0) -> Dict[str, str]:
     return info
 
 
-COMMON_ENDPOINTS = ["/admin", "/login", "/server-status", "/api/version", "/robots.txt"]
+COMMON_ENDPOINTS = ["/admin", "/login", "/server-status", "/api/version", "/robots.txt", "/signin", "/logout", "/register"]
 
 def probe_common_endpoints(session: requests.Session, base_url: str, timeout: int = 5) -> Dict[str, int]:
     results: Dict[str, int] = {}
