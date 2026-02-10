@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -150,7 +150,20 @@
       <h1>Automated Web Application Analysis System</h1>
       <div class="muted">
         Model: <span class="pill">Claude Sonnet 4.5</span>
-        CVE DB: <span class="pill">{{ cve_db_path }}</span>
+        CVE DB: <span class="pill">{{ cve_db_path }}{% if cve_db_ready %} ({{ cve_db_size_mb }} MB){% endif %}</span>
+        {% if not cve_db_ready %}
+          <div style="margin-top:12px; padding:12px; border-radius:12px; border:1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.12);">
+            <b>CVE DB not found</b><br/>
+            <span style="opacity:0.9;">
+              The application needs <code>data/cve_store.db</code> to run matching.
+              Build the database first, then refresh this page.
+            </span>
+            <div style="margin-top:8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; opacity:0.95;">
+              Docker: <code>docker compose run --rm db_builder</code><br/>
+              Local: <code>python scripts/build_cve_db.py --out data/cve_store.db --from-year 2013</code>
+            </div>
+          </div>
+        {% endif %}
       </div>
     </div>
 
@@ -159,11 +172,11 @@
         <div>
           <label>Target URL</label>
           <input id="url" type="text" placeholder="https://example.com/" />
-          <button id="startBtn" onclick="startRun()">Start</button>
+          <button id="startBtn" onclick="startRun()" {% if not cve_db_ready %}disabled{% endif %}>Start</button>
 
           <div id="loading" class="loading" style="display:none;">
             <div class="spinner"></div>
-            <div id="loadingText">Uruchamiam...</div>
+            <div id="loadingText">Loading...</div>
           </div>
 
           <div id="statusLine" class="muted" style="margin-top:10px;"></div>
@@ -172,10 +185,10 @@
     </div>
 
     <div class="card" id="resultsCard" style="display:none;">
-      <h1>Wyniki</h1>
+      <h1>Results</h1>
       <div id="reportLink" class="muted"></div>
       <div style="margin-top:10px;">
-        <b>Pliki do pobrania</b>
+        <b>Download files</b>
         <ul id="filesList"></ul>
       </div>
     </div>
@@ -214,7 +227,7 @@
     async function startRun() {
       const url = document.getElementById("url").value.trim();
       if (!url) {
-        alert("Wklej URL.");
+        alert("Paste a target URL.");
         return;
       }
 
@@ -223,7 +236,7 @@
       document.getElementById("filesList").innerHTML = "";
       document.getElementById("reportLink").innerHTML = "";
 
-      setLoading(true, "Startuję pipeline...");
+      setLoading(true, "Starting pipeline...");
       setStatus("");
       setLogs([]);
 
@@ -237,7 +250,7 @@
         const txt = await resp.text();
         setLoading(false);
         document.getElementById("startBtn").disabled = false;
-        alert("Błąd startu: " + txt);
+        alert("Start error: " + txt);
         return;
       }
 
@@ -257,14 +270,13 @@
       const st = await resp.json();
 
       setLogs(st.logs || []);
-      setStatus(`Status: ${st.status} | Etap: ${st.stage}`);
+      setStatus(`Status: ${st.status} | Stage: ${st.stage}`);
 
       if (st.status === "running") {
-        setLoading(true, "Pracuję... (" + (st.stage || "pipeline") + ")");
+        setLoading(true, "Running... (" + (st.stage || "pipeline") + ")");
         return;
       }
 
-      // done / error
       setLoading(false);
       document.getElementById("startBtn").disabled = false;
 
@@ -278,19 +290,16 @@
         return;
       }
 
-      // pokaż wyniki
       document.getElementById("resultsCard").style.display = "block";
 
-      // raport HTML
       if (st.report_html) {
         document.getElementById("reportLink").innerHTML =
-          `Raport: <a target="_blank" href="/api/runs/${currentRunId}/report?file=${encodeURIComponent(st.report_html)}">Otwórz HTML</a>`;
+          `Report: <a target="_blank" href="/api/runs/${currentRunId}/report?file=${encodeURIComponent(st.report_html)}">Open HTML</a>`;
       } else {
         document.getElementById("reportLink").textContent =
-          "Raport HTML: nie znaleziono automatycznie (sprawdź listę plików).";
+          "Report HTML: didn't find (check list of files).";
       }
 
-      // pliki
       const ul = document.getElementById("filesList");
       ul.innerHTML = "";
       const files = st.files || {};
