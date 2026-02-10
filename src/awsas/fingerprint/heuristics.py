@@ -24,7 +24,7 @@ def _extract_version_from_url(url: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-# (opcjonalnie) słownik faviconów → komponent
+# favicon hash diction (doesnt work)
 FAVICON_MAP: Dict[str, tuple[str, float]] = {
     "5bcd3dcee985cc21b7ab00a153d6e5d60c7ccf22": ("WordPress", 0.9),
     "31d5f6c8a4fbdc9e66f11b9d0e779d85b6a7c1e9": ("phpMyAdmin", 0.95),
@@ -42,9 +42,8 @@ COOKIE_HINTS = {
     "wordpress_logged_in": ("WordPress", None, 0.9),
 }
 
-# Proste wzorce do wykrywania popularnych bibliotek JS/CSS po src/href
+# patterns for detecting popular libraries
 SCRIPT_LIB_HINTS = [
-    # name, substring/regex (lowercase), weight
     ("jQuery", r"jquery(\.min)?\.js", 0.8),
     ("React", r"react(\.production)?(\.min)?\.js", 0.6),
     ("Vue", r"vue(\.runtime)?(\.min)?\.js", 0.6),
@@ -56,7 +55,6 @@ SCRIPT_LIB_HINTS = [
 ]
 
 HEADER_HINTS = [
-    # Backend z wersją
     ("PHP",      r"\bX-Powered-By:\s*PHP/?(?P<ver>[\d\.]+)?",         0.8),
     ("Express",  r"\bX-Powered-By:\s*Express/?(?P<ver>[\d\.]+)?",     1.0),
     ("ASP.NET",  r"\bX-Powered-By:\s*ASP\.NET/?(?P<ver>[\d\.]+)?",    0.7),
@@ -75,7 +73,6 @@ def detect_components(
 
     matches: List[ComponentMatch] = []
 
-    # 1) meta generator
     gen = meta.get("generator")
     if gen:
         parts = gen.split()
@@ -84,14 +81,12 @@ def detect_components(
         ev = Evidence("meta_generator", gen, 1.0)
         matches.append(ComponentMatch(name=name, version=version, score=1.0, evidence=[ev]))
 
-    # 2) cookies
     for c in cookies:
         if c in COOKIE_HINTS:
             name, version, w = COOKIE_HINTS[c]
             ev = Evidence("cookie", c, w)
             _append_match(matches, name, version, w, ev)
 
-    # 3) Server header
     if headers:
         header_blob = " ".join(f"{k}: {v}" for k, v in headers.items())
         for name, pattern, w in HEADER_HINTS:
@@ -101,14 +96,12 @@ def detect_components(
                 ev = Evidence("header", m.group(0), w)
                 _append_match(matches, name, ver, w, ev)
 
-        # zachowaj prosty generic fallback na Server, jeśli nie zadziałały powyższe
         server = headers.get("Server")
         if server:
             srv = server.split("/")[0]
             ev = Evidence("server_header", server, 0.2)
             _append_match(matches, srv, None, 0.2, ev)
 
-    # 4) scripts heuristics (np. jQuery)
     for s in scripts:
         s_l = s.lower()
         for name, pattern, w in SCRIPT_LIB_HINTS:
@@ -118,18 +111,15 @@ def detect_components(
                 _append_match(matches, name, ver, w, ev)
 
 
-    # 5) favicon hash
     if favicon_hash and favicon_hash in FAVICON_MAP:
         name, w = FAVICON_MAP[favicon_hash]
         ev = Evidence("favicon_hash", favicon_hash, w)
         _append_match(matches, name, None, w, ev)
 
-    # 6) TLS issuer – sygnał słaby, czasem pomocniczy
     if tls_issuer:
         ev = Evidence("tls_issuer", tls_issuer, 0.2)
         _append_match(matches, "TLS-Issuer", None, 0.2, ev)
 
-    # deduplikacja i scalanie
     combined: Dict[str, ComponentMatch] = {}
     for m in matches:
         key = m.name.lower()

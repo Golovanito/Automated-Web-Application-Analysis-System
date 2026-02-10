@@ -30,7 +30,11 @@ def main():
     p.add_argument("--timeout", type=int, default=10, help="Request timeout (seconds)")
     args = p.parse_args()
 
-    det = FingerprintDetector(timeout=args.timeout)
+    det = FingerprintDetector(timeout=args.timeout, dvwa_login_data={
+        "username": "admin",
+        "password": "password",
+        "security": "low"
+    })
     #print(f"[+] Starting fingerprint for: {args.url}")
     profile = det.analyze(args.url)
 

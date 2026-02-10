@@ -1,23 +1,13 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Test matchera CVE na realnej bazie CVE (SQLite) z danymi z fingerprintu.
-Wynik jest wypisywany w konsoli oraz zapisywany do pliku JSON w folderze 'out/'.
-"""
-
 import json
 import os, sys
 from datetime import datetime
 from typing import List, Dict, Any
 
-# === ŚCIEŻKI DO DANYCH (DOSTOSUJ DO SIEBIE) ===
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-DB_PATH = "data/cve_store.db"                 # baza CVE SQLite
-FINGERPRINT_JSON = "data/fingerprint.json"     # wynik FingerprintDetector.to_dict()
-OUTPUT_JSON = "data/matcher_result.json"       # wynik matchera zapisany do pliku
+DB_PATH = "data/cve_store.db"                 
+FINGERPRINT_JSON = "data/fingerprint.json"
+OUTPUT_JSON = "data/matcher_result.json"      
 
-# --- importy z projektu ---
 from awsas.cve.matcher import match_components_to_cves
 from awsas.cve.store import CVEStore
 
@@ -84,10 +74,8 @@ def save_to_json(results: Dict[str, Any], output_path: str):
 
 
 def main():
-    # 1) sprawdź bazę
     ensure_db(DB_PATH)
 
-    # 2) wczytaj fingerprint
     if not os.path.exists(FINGERPRINT_JSON):
         raise FileNotFoundError(f"❌ Nie znaleziono pliku fingerprintu: {FINGERPRINT_JSON}")
     components = load_components_from_fingerprint(FINGERPRINT_JSON)
@@ -99,7 +87,6 @@ def main():
     for c in components:
         print(f" - {c['name']}: {c.get('version') or '(brak wersji)'}")
 
-    # 3) uruchom matcher
     print("\n⏳ Uruchamianie matchera...")
     results = match_components_to_cves(
         components=components,
@@ -107,7 +94,6 @@ def main():
         limit_per_component=10,
     )
 
-    # 4) wypisz i zapisz wyniki
     print_summary(results, limit=10)
     save_to_json(results, OUTPUT_JSON)
 

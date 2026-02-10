@@ -1,4 +1,3 @@
-# src/awsas/cve/store.py
 import sqlite3
 import json
 from typing import Optional, List, Dict, Any
@@ -20,26 +19,24 @@ class CVEStore:
         self.conn.commit()
 
     def bulk_insert(self, items: List[Dict[str, Any]]):
-        # Wstawianie listy rekordow 
+        # insert list of records
         cur = self.conn.cursor()
         for item in items:
             if not isinstance(item, dict):
                 continue
             cve_id = None
-            # Format NVD 1.1
+            # NVD 1.1
             cve = item.get("cve")
             if isinstance(cve, dict):
                 meta = cve.get("CVE_data_meta")
                 if isinstance(meta, dict) and "ID" in meta:
                     cve_id = meta["ID"]
-                # Format NVD 2.0
+                # NVD 2.0
                 if not cve_id and "id" in cve:
                     cve_id = cve["id"]
-            # fallback dla prostszych struktur
             if not cve_id:
                 cve_id = item.get("id") or item.get("CVE") or item.get("ID")
             if not cve_id:
-                # brak sensownego ID -> pomijamy
                 continue
             cur.execute(
                 "INSERT OR REPLACE INTO cve_items (id, data) VALUES (?, ?);",
@@ -53,7 +50,6 @@ class CVEStore:
         return json.loads(r[0]) if r else None
 
     def search_by_text(self, query: str, limit: int = 50) -> List[Dict[str, Any]]:
-        # Szuka tekstu w JSON-tekstach
         q = f"%{query.lower()}%"
         rows = self.conn.execute(
             "SELECT data FROM cve_items WHERE lower(data) LIKE ? LIMIT ?;",

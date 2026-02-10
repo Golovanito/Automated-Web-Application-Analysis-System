@@ -1,0 +1,16 @@
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.venv/
+src/venv/
+.env
+runs/
+reports_test/
+data/
+!data/cve_store.db
+*.log
+.DS_Store
+.git/
+.idea/
+.vscode/

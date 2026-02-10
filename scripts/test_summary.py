@@ -8,9 +8,13 @@ DB_PATH = "data/cve_store.db"
 
 
 def main():
-    url = "http://127.0.0.1:4280"
+    url = "http://127.0.0.1:4280/vulnerabilities/xss_r/"
 
-    det = FingerprintDetector()
+    det = FingerprintDetector(dvwa_login_data={
+        "username": "admin",
+        "password": "password",
+        "security": "low"
+    })
     profile = det.analyze(url)
 
     components = [

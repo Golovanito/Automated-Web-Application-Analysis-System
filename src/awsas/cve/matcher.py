@@ -1,12 +1,21 @@
 import json
 from typing import List, Dict, Any
 from .store import CVEStore
-from .versioning import assess_version_against_cve
+from .versioning import assess_version_against_cve, extract_version_ranges_from_cve
+
+COMPONENT_CPE_PREFIXES: Dict[str, List[str]] = {
+    "php": ["cpe:2.3:a:php:php"],
+    "apache": ["cpe:2.3:a:apache:http_server"],
+    "nginx": ["cpe:2.3:a:nginx:nginx"],
+    "jquery": ["cpe:2.3:a:jquery:jquery"],
+    "wordpress": ["cpe:2.3:a:wordpress:wordpress"],
+    "joomla": ["cpe:2.3:a:joomla:joomla"],
+    "mysql": ["cpe:2.3:a:oracle:mysql"],
+    "postgresql": ["cpe:2.3:a:postgresql:postgresql"],
+}
 
 
 def json_safe_extract_cve_id(item: Dict[str, Any]) -> str:
-
-    # ID CVE różnych formatów: 1.1 i 2.0
     if not isinstance(item, dict):
         return "<unknown>"
 
@@ -21,18 +30,14 @@ def json_safe_extract_cve_id(item: Dict[str, Any]) -> str:
     if "id" in cve:
         return str(cve["id"])
 
-    # fallback
     return (
         str(cve.get("cve_id"))
-        or str(cve.get("CVE"))  # na wszelki
+        or str(cve.get("CVE"))
         or str(cve.get("ID"))
         or "<unknown>"
     )
 
-
 def json_safe_extract_description(item: Dict[str, Any]) -> str:
-  
-    # Wyciąga opis CVE
     if not isinstance(item, dict):
         return ""
 
@@ -60,20 +65,43 @@ def json_safe_extract_description(item: Dict[str, Any]) -> str:
                 and isinstance(d.get("value"), str)
             ):
                 return d["value"]
-        # jak nie ma EN, bierz pierwszy sensowny
+        # if no EN language
         for d in cve["descriptions"]:
             if isinstance(d, dict) and isinstance(d.get("value"), str):
                 return d["value"]
 
     return ""
 
+def _cve_has_matching_cpe(cve_item: Dict[str, Any], component_name: str) -> bool:
+    # true only when CPE starts with one of COMPONENT_CPE_PREFIXES
+    if not component_name:
+        return True
+
+    prefixes = COMPONENT_CPE_PREFIXES.get(component_name.lower())
+    if not prefixes:
+        return True
+
+    ranges = extract_version_ranges_from_cve(cve_item)
+    if not ranges:
+        return False
+
+    for r in ranges:
+        cpe_uri = r.get("cpe_uri")
+        if not cpe_uri:
+            continue
+        for pref in prefixes:
+            if isinstance(cpe_uri, str) and cpe_uri.startswith(pref):
+                return True
+
+    return False
+
 
 def match_components_to_cves(
     components: List[Dict[str, Any]],
     db_path: str,
     limit_per_component: int = 10,
+    min_score: float = 0.3,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    
     store = CVEStore(db_path)
     results: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -86,61 +114,54 @@ def match_components_to_cves(
             version = (comp.get("version") or "").strip()
             key = f"{name} {version}" if version else name
 
-            # pobierz więcej hitów, potem przytnij
             raw_hits = store.search_by_text(name, limit=limit_per_component * 5)
+            if not raw_hits:
+                continue
 
             matches: List[Dict[str, Any]] = []
             name_l = name.lower()
+            version_l = version.lower() if version else ""
 
             for hit in raw_hits:
-                # upewnij się, że mamy dict
                 if not isinstance(hit, dict):
                     try:
                         hit = json.loads(hit)
                     except Exception:
                         continue
 
+                if not _cve_has_matching_cpe(hit, name):
+                    continue
+
                 full_json_str = json.dumps(hit).lower()
                 desc = json_safe_extract_description(hit)
                 desc_l = desc.lower()
 
-                # --- 1) bazowe dopasowanie po nazwie ---
                 score = 0.0
 
-                # nazwa występuje gdzieś w rekordzie JSON (klucze, wartości, itp.)
                 if name_l in full_json_str:
                     score += 0.3
 
-                # nazwa występuje w opisie (czytelny sygnał)
                 if name_l in desc_l:
                     score += 0.3
 
-                # --- 2) kontekst wersji (assess_version_against_cve) ---
                 version_status = "unknown"
                 if version:
-                    version_status = assess_version_against_cve(version, hit)
-
+                    prefixes = COMPONENT_CPE_PREFIXES.get(name.lower()) or []
+                    version_status = assess_version_against_cve(version, hit, allowed_cpe_prefixes=prefixes)
                     if version_status == "vulnerable":
-                        # twardy dowód: wersja w zakresie podatności
                         score += 0.35
-                    elif version_status == "maybe_vulnerable":
-                        # coś pasuje, ale nie do końca
-                        score += 0.15
+                    # elif version_status == "maybe_vulnerable":
+                        # score += 0.15
                     elif version_status == "not_vulnerable":
-                        # to CVE nie dotyczy tej wersji → pomijamy
                         continue
 
-                    # --- 3) fallback: wersja jako zwykły tekst ---
-                    # jeśli nadal nie mamy pewności, ale numer wersji pojawia się w JSON-ie,
                     if version_status in ("unknown", "maybe_vulnerable"):
-                        if version.lower() in full_json_str:
+                        if version_l and version_l in full_json_str:
                             score += 0.1
 
-                # przycięcie do [0,1]
                 score = max(0.0, min(1.0, score))
 
-                # odfiltruj totalne śmieci
-                if score < 0.3:
+                if score < min_score:
                     continue
 
                 matches.append(
@@ -152,9 +173,9 @@ def match_components_to_cves(
                     }
                 )
 
-            # sortujemy po score i przycinamy do limitu
-            matches.sort(key=lambda m: m["score"], reverse=True)
-            results[key] = matches[:limit_per_component]
+            if matches:
+                matches.sort(key=lambda m: m["score"], reverse=True)
+                results[key] = matches[:limit_per_component]
 
     finally:
         store.close()

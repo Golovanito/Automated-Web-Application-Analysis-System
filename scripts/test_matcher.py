@@ -1,11 +1,9 @@
-# scripts/test_matcher_manual.py  (minimal, uses only profile["components"])
 import json
 import sys, os
 from pathlib import Path
 
-# ensure src on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from awsas.cve.matcher import match_components_to_cves  # noqa: E402
+from awsas.cve.matcher import match_components_to_cves  
 
 def main():
     db_path = "data/cve_store.db"
@@ -16,12 +14,9 @@ def main():
 
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
 
-    # use whatever fingerprint already provides
     components = profile.get("components") or []
 
-    # if components are objects like {"name":..., "version":...} -> good
-    # but matcher expects list of dicts with 'name' and optional 'version'
-    # so coerce minimal shape just in case:
+
     coerced = []
     for c in components:
         if not isinstance(c, dict):
@@ -38,15 +33,13 @@ def main():
     results = match_components_to_cves(
         coerced,
         db_path=db_path,
-        use_cvedb=False,
-        limit_per_component=10
+        limit_per_component=1000
     )
 
     out_path = Path("data/matcher_output.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps({"components": coerced, "results": results}, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # simple print
     for comp in coerced:
         name = comp["name"]
         hits = results.get(name, []) or results.get(comp.get("name"), [])

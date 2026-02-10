@@ -1,3 +1,7 @@
 venv/
-data/*.db
+data/*
+# !data/cve_store.db
 data/*.json
+.env
+runs/
+reports_test/

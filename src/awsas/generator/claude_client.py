@@ -70,7 +70,7 @@ class ClaudeClient:
 
         resp = self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=4048,
             temperature=0.2,
             system=payload["system"],
             messages=payload["messages"],

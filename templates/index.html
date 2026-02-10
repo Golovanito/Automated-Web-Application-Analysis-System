@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AWSAS Web UI</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: #0b1220;
+      color: #e8eefc;
+      margin: 0;
+    }
+
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 28px 16px 80px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 12px;
+      letter-spacing: 0.2px;
+    }
+
+    label {
+      display:block;
+      font-size: 13px;
+      opacity: 0.9;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(0,0,0,0.25);
+      color: #e8eefc;
+      outline: none;
+    }
+
+    button {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 0;
+      cursor: pointer;
+      background: #7c3aed;
+      color: white;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .muted {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      opacity: 0.9;
+      font-size: 13px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(124,58,237,0.18);
+      border: 1px solid rgba(124,58,237,0.35);
+      font-size: 12px;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.22);
+      border-top-color: rgba(255,255,255,0.92);
+      animation: spin 0.85s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .log {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      background: rgba(0,0,0,0.25);
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    a {
+      color: #a78bfa;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    ul {
+      margin: 8px 0 0 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Automated Web Application Analysis System</h1>
+      <div class="muted">
+        Model: <span class="pill">Claude Sonnet 4.5</span>
+        CVE DB: <span class="pill">{{ cve_db_path }}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Target URL</label>
+          <input id="url" type="text" placeholder="https://example.com/" />
+          <button id="startBtn" onclick="startRun()">Start</button>
+
+          <div id="loading" class="loading" style="display:none;">
+            <div class="spinner"></div>
+            <div id="loadingText">Uruchamiam...</div>
+          </div>
+
+          <div id="statusLine" class="muted" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="resultsCard" style="display:none;">
+      <h1>Wyniki</h1>
+      <div id="reportLink" class="muted"></div>
+      <div style="margin-top:10px;">
+        <b>Pliki do pobrania</b>
+        <ul id="filesList"></ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Logs</h1>
+      <div class="log" id="logBox">—</div>
+    </div>
+  </div>
+
+  <script>
+    let currentRunId = null;
+    let pollTimer = null;
+
+    function setLoading(on, text) {
+      const el = document.getElementById("loading");
+      const t = document.getElementById("loadingText");
+      el.style.display = on ? "inline-flex" : "none";
+      if (text) t.textContent = text;
+    }
+
+    function setStatus(text) {
+      document.getElementById("statusLine").textContent = text || "";
+    }
+
+    function setLogs(lines) {
+      const box = document.getElementById("logBox");
+      if (!lines || lines.length === 0) {
+        box.textContent = "—";
+        return;
+      }
+      box.textContent = lines.join("\n");
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function startRun() {
+      const url = document.getElementById("url").value.trim();
+      if (!url) {
+        alert("Wklej URL.");
+        return;
+      }
+
+      document.getElementById("startBtn").disabled = true;
+      document.getElementById("resultsCard").style.display = "none";
+      document.getElementById("filesList").innerHTML = "";
+      document.getElementById("reportLink").innerHTML = "";
+
+      setLoading(true, "Startuję pipeline...");
+      setStatus("");
+      setLogs([]);
+
+      const resp = await fetch("/api/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        setLoading(false);
+        document.getElementById("startBtn").disabled = false;
+        alert("Błąd startu: " + txt);
+        return;
+      }
+
+      const data = await resp.json();
+      currentRunId = data.run_id;
+
+      pollStatus();
+      pollTimer = setInterval(pollStatus, 1000);
+    }
+
+    async function pollStatus() {
+      if (!currentRunId) return;
+
+      const resp = await fetch(`/api/runs/${currentRunId}`);
+      if (!resp.ok) return;
+
+      const st = await resp.json();
+
+      setLogs(st.logs || []);
+      setStatus(`Status: ${st.status} | Etap: ${st.stage}`);
+
+      if (st.status === "running") {
+        setLoading(true, "Pracuję... (" + (st.stage || "pipeline") + ")");
+        return;
+      }
+
+      // done / error
+      setLoading(false);
+      document.getElementById("startBtn").disabled = false;
+
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      if (st.status === "error") {
+        alert("Pipeline error: " + (st.error || "unknown"));
+        return;
+      }
+
+      // pokaż wyniki
+      document.getElementById("resultsCard").style.display = "block";
+
+      // raport HTML
+      if (st.report_html) {
+        document.getElementById("reportLink").innerHTML =
+          `Raport: <a target="_blank" href="/api/runs/${currentRunId}/report?file=${encodeURIComponent(st.report_html)}">Otwórz HTML</a>`;
+      } else {
+        document.getElementById("reportLink").textContent =
+          "Raport HTML: nie znaleziono automatycznie (sprawdź listę plików).";
+      }
+
+      // pliki
+      const ul = document.getElementById("filesList");
+      ul.innerHTML = "";
+      const files = st.files || {};
+      const keys = Object.keys(files);
+      keys.sort();
+
+      for (const rel of keys) {
+        const li = document.createElement("li");
+        li.innerHTML =
+          `<a href="/api/runs/${currentRunId}/files/${encodeURIComponent(rel)}" target="_blank">${rel}</a>`;
+        ul.appendChild(li);
+      }
+    }
+  </script>
+</body>
+</html>

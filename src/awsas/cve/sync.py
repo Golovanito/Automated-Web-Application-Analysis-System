@@ -1,4 +1,3 @@
-# src/awsas/cve/sync.py
 import json
 from typing import List, Dict, Any
 from .store import CVEStore

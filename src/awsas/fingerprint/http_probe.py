@@ -20,7 +20,6 @@ def safe_request(session: requests.Session, method: str, url: str, timeout: int 
 
 
 def parse_html(html: str) -> Tuple[List[str], List[str], Dict[str, str]]:
-    # Zwraca (scripts, css, meta) z podanego HTML-a
     scripts, css, metas = [], [], {}
     try:
         soup = BeautifulSoup(html, "html.parser")
@@ -49,10 +48,10 @@ def extract_forms(html: str) -> List[Dict[str, Any]]:
     try:
         soup = BeautifulSoup(html, "html.parser")
 
-        # 1) Prawdziwe formularze <form>...</form>
+        # forms
         for f in soup.find_all("form"):
             form_info: Dict[str, Any] = {
-                "kind": "form",  # normalny formularz
+                "kind": "form",
                 "action": f.get("action") or "",
                 "method": (f.get("method") or "GET").upper(),
                 "inputs": [],
@@ -66,11 +65,11 @@ def extract_forms(html: str) -> List[Dict[str, Any]]:
                 })
             forms.append(form_info)
 
-        # 2) "Sierotki" – inputy poza jakimkolwiek <form>
+        # inputs that aren't in <form> </form>
         orphan_inputs: List[Dict[str, Any]] = []
         for inp in soup.find_all(["input", "textarea", "select"]):
             if inp.find_parent("form"):
-                continue  # już zebrane wyżej
+                continue
 
             orphan_inputs.append({
                 "name": inp.get("name"),
@@ -84,7 +83,7 @@ def extract_forms(html: str) -> List[Dict[str, Any]]:
                 {
                     "kind": "orphan_inputs",
                     "action": "",
-                    "method": "GET",  # domyślnie, bo nie wiemy co robi JS
+                    "method": "GET",
                     "inputs": orphan_inputs,
                 }
             )
@@ -99,11 +98,9 @@ def extract_paths(html: str, base_url: str) -> List[str]:
     paths: set[str] = set()
     try:
         soup = BeautifulSoup(html, "html.parser")
-        # <a href="...">
         for a in soup.find_all("a", href=True):
             href = a["href"]
             paths.add(href)
-        # <script src="..."> i <link href="...">
         for tag in soup.find_all(["script", "link"], src=True):
             paths.add(tag.get("src"))
         for tag in soup.find_all("link", href=True):
@@ -118,19 +115,16 @@ def extract_paths(html: str, base_url: str) -> List[str]:
     for p in paths:
         if not p:
             continue
-        # ignorujemy absolutne zewnętrzne (inne hosty)
         full = urljoin(base_url, p)
         parsed = urlparse(full)
         if parsed.netloc != base.netloc:
             continue
-        # interesuje nas tylko path + ewentualny fragment api
         cleaned.add(parsed.path)
 
     return sorted(cleaned)
 
 
 def discover_favicon_url(final_url: str, html: Optional[str]) -> str:
-    #Znajduje URL do favicona: <link rel='icon'> albo /favicon.ico.
     favicon_url = urljoin(final_url, "/favicon.ico")
     if not html:
         return favicon_url
@@ -157,7 +151,6 @@ def fetch_favicon_hash(session: requests.Session, final_url: str, html: Optional
 
 
 def fetch_tls_info(url: str, timeout: float = 5.0) -> Dict[str, str]:
-    # Pobiera podstawowe info TLS (tylko dla https). 
     info: Dict[str, str] = {}
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
@@ -166,8 +159,8 @@ def fetch_tls_info(url: str, timeout: float = 5.0) -> Dict[str, str]:
     port = parsed.port or 443
     try:
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        # ctx.check_hostname = False
+        # ctx.verify_mode = ssl.CERT_NONE
         with socket.create_connection((hostname, port), timeout=timeout) as sock:
             with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
