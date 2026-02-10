@@ -112,7 +112,7 @@ def _call_run_full_pipeline(target_url: str, run_dir: Path) -> Dict[str, Any]:
 
     claude_key = os.getenv("CLAUDE_API_KEY")
     if not claude_key:
-        raise RuntimeError("Brak CLAUDE_API_KEY w zmiennych środowiskowych.")
+        raise RuntimeError("Missing CLAUDE_API_KEY in environment variables.")
 
     claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
 
@@ -230,15 +230,37 @@ def _runner_thread(run_id: str, target_url: str) -> None:
             logs=_RUN_STATE[run_id]["logs"] + [f"ERROR: {e}"],
         )
 
+def _db_ready() -> bool:
+    try:
+        return CVE_DB_PATH.exists() and CVE_DB_PATH.is_file() and CVE_DB_PATH.stat().st_size > 0
+    except Exception:
+        return False
+    
+@app.get("/api/system")
+def system_status() -> JSONResponse:
+    return JSONResponse(
+        {
+            "cve_db_path": CVE_DB_PATH.as_posix(),
+            "cve_db_exists": CVE_DB_PATH.exists(),
+            "cve_db_ready": _db_ready(),
+            "cve_db_size_bytes": (CVE_DB_PATH.stat().st_size if CVE_DB_PATH.exists() else 0),
+            "model_name": "Claude Sonnet 4.5",
+        }
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
+    db_ready = _db_ready()
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "cve_db_path": CVE_DB_PATH.as_posix(),
             "model_name": "Claude Sonnet 4.5",
+            "cve_db_ready": db_ready,
+            "cve_db_exists": CVE_DB_PATH.exists(),
+            "cve_db_size_mb": round((CVE_DB_PATH.stat().st_size / (1024 * 1024)), 1) if CVE_DB_PATH.exists() else 0.0,
         },
     )
 
@@ -249,10 +271,13 @@ def start_run(payload: Dict[str, Any]) -> JSONResponse:
     if not url:
         raise HTTPException(status_code=400, detail="Missing 'url'.")
 
-    if not CVE_DB_PATH.exists():
+    if not _db_ready():
         raise HTTPException(
-            status_code=500,
-            detail=f"Brak CVE DB: {CVE_DB_PATH.as_posix()}",
+            status_code=409,
+            detail=(
+                "CVE database is missing. Build it first (data/cve_store.db). "
+                "Tip: run the DB builder container or script, then refresh the page."
+            ),
         )
 
     run_id = uuid.uuid4().hex[:12]
@@ -324,4 +349,4 @@ def download_file(run_id: str, rel_path: str) -> FileResponse:
 # python -m awsas.core.webapp
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("awsas.core.webapp:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("awsas.core.webapp:app", host="127.0.0.1", port=8000, reload=True)

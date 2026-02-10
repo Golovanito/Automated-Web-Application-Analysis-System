@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  awsas:
+    build: .
+    container_name: awsas
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./runs:/app/runs
+      - ./data:/app/data
+    restart: unless-stopped
+
+  db_builder:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: >
+      python scripts/init_cve_store.py
+      --db /app/data/cve_store.db
+      --data-dir /app/data
+      --since 2013
+      --with-recent
+      --with-modified
