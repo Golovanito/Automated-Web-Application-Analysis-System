@@ -349,4 +349,4 @@ def download_file(run_id: str, rel_path: str) -> FileResponse:
 # python -m awsas.core.webapp
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("awsas.core.webapp:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("awsas.core.webapp:app", host="0.0.0.0", port=8000, reload=True)
