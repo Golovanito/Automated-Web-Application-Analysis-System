@@ -171,7 +171,7 @@
       <div class="row">
         <div>
           <label>Target URL</label>
-          <input id="url" type="text" placeholder="https://example.com/" />
+          <input id="url" type="text" placeholder="https://example.com/" required />
           <button id="startBtn" onclick="startRun()" {% if not cve_db_ready %}disabled{% endif %}>Start</button>
 
           <div id="loading" class="loading" style="display:none;">
@@ -223,9 +223,22 @@
       box.textContent = lines.join("\n");
       box.scrollTop = box.scrollHeight;
     }
+    
+    function isValidHttpUrl(s) {
+      try {
+        const u = new URL(s);
+        return u.protocol === "http:" || u.protocol === "https:";
+      } catch {
+        return false;
+      }
+    }
 
     async function startRun() {
       const url = document.getElementById("url").value.trim();
+      if (!isValidHttpUrl(url)) {
+        alert("Please enter a valid http(s) URL, e.g. https://example.com/");
+        return;
+      }
       if (!url) {
         alert("Paste a target URL.");
         return;
