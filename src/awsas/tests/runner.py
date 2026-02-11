@@ -131,10 +131,8 @@ def _choose_baseline_value(param: str, val: str) -> str:
         return "127.0.0.1"
     if p in ("page", "file", "path"):
         return "index.php"
-    # tokenów nie ruszamy
     if "token" in p:
         return val
-    # default
     return "test"
 
 def build_baseline_from_spec(method: str, path: str, body: Optional[str]) -> tuple[str, Optional[str]]:
